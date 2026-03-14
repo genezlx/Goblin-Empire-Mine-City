@@ -9,12 +9,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <style>
-        /* Блокуємо будь-яку прокрутку та фіксуємо висоту */
         html, body { 
             margin: 0; padding: 0; 
             width: 100%; height: 100%; 
             overflow: hidden; background: #1a1a1a; 
-            position: fixed; /* Важливо для мобільних PWA */
+            position: fixed;
         }
 
         body { color: white; font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
@@ -25,10 +24,9 @@
         }
         
         .tabs { display: flex; height: 50px; background: #34495e; }
-        .tab-btn { flex: 1; border: none; background: #34495e; color: #bdc3c7; font-weight: bold; }
+        .tab-btn { flex: 1; border: none; background: #34495e; color: #bdc3c7; font-weight: bold; font-size: 14px; }
         .tab-btn.active { background: #27ae60; color: white; }
         
-        /* Розраховуємо висоту ігрової зони точно */
         #mine-page, #city-page { 
             width: 100%; 
             height: calc(100% - 110px - env(safe-area-inset-top)); 
@@ -39,10 +37,9 @@
 
         canvas { display: block; background: #1e272e; width: 100%; height: 100%; }
 
-        /* НОВА ЛОГІКА КНОПКИ: Використовуємо фіксоване позиціювання */
         .controls { 
             position: fixed; 
-            bottom: calc(40px + env(safe-area-inset-bottom)); 
+            bottom: calc(30px + env(safe-area-inset-bottom)); 
             left: 0;
             width: 100%; 
             display: flex; 
@@ -52,16 +49,16 @@
         }
         .btn { 
             pointer-events: auto; 
-            padding: 18px 35px; 
+            padding: 16px 30px; 
             border: none; 
             color: white; 
             border-radius: 50px; 
             font-weight: bold; 
             font-size: 18px;
             background: #e67e22; 
-            box-shadow: 0 6px #d35400;
-            active { transform: translateY(2px); box-shadow: 0 4px #d35400; }
+            box-shadow: 0 5px #d35400;
         }
+        .btn:active { transform: translateY(2px); box-shadow: 0 2px #d35400; }
         
         .village-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; background: #2ecc71; border-radius: 15px; margin: 10px; }
         .plot { aspect-ratio: 1/1; background: #27ae60; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; position: relative; }
@@ -114,25 +111,26 @@
 
     function resize() {
         const page = document.getElementById('mine-page');
+        if (!page) return;
         canvas.width = window.innerWidth;
         canvas.height = page.offsetHeight;
     }
     
-    // Слідкуємо за зміною орієнтації та розміру
     window.addEventListener('resize', () => { setTimeout(resize, 200); });
     window.addEventListener('load', () => { setTimeout(resize, 200); });
 
     function save() {
-        const data = { gold, level, goblins: goblins.map(g=>({x:g.x, y:g.y, lvl:g.lvl})), villageData };
-        localStorage.setItem('goblin_master_pwa', JSON.stringify(data));
+        const data = { gold, level, goblins: goblins.map(g=>({x:g.x, y:g.y, lvl:g.lvl})), villageData, map };
+        localStorage.setItem('goblin_master_pwa_v2', JSON.stringify(data));
     }
 
     function load() {
-        const s = localStorage.getItem('goblin_master_pwa');
+        const s = localStorage.getItem('goblin_master_pwa_v2');
         if(s) {
             const d = JSON.parse(s);
             gold = d.gold; level = d.level; villageData = d.villageData;
             goblins = d.goblins.map(g => new Goblin(g.x, g.y, g.lvl));
+            if (d.map) map = d.map;
         }
         updateStats();
     }
@@ -142,16 +140,10 @@
         document.getElementById('city-page').className = p==='city'?'active-page':'';
         document.getElementById('t-mine').className = 'tab-btn ' + (p==='mine'?'active':'');
         document.getElementById('t-city').className = 'tab-btn ' + (p==='city'?'active':'');
-        
-        // Показуємо кнопку лише на сторінці шахти
         document.getElementById('mine-controls').style.display = p==='mine' ? 'flex' : 'none';
-        
         if(p==='city') renderVillage();
         setTimeout(resize, 50);
     }
-
-    // Решта логіки (renderVillage, openBuildMenu, initLevel, Goblin class тощо) залишається без змін
-    // але я додав прискорення, яке ми обговорювали:
 
     function getSpeedBonus() {
         let forests = villageData.filter(p => p.type === 'forest');
@@ -207,15 +199,23 @@
 
     function initLevel() {
         map = [];
-        const types = [{ icon:'🪨', min:30, max:60, r:50 }, { icon:'🪙', min:200, max:500, r:300 }, { icon:'🔵', min:600, max:1200, r:1500 }, { icon:'🟡', min:1800, max:3600, r:5000 }];
-        let cols = Math.floor(canvas.width / 90);
-        for (let i = 0; i < (cols * 5); i++) {
+        const types = [{ icon:'🪨', min:30, max:60, r:50 }, { icon:'🪙', min:150, max:400, r:300 }, { icon:'🔵', min:500, max:1000, r:1500 }, { icon:'🟡', min:1500, max:3000, r:5000 }];
+        let cols = Math.floor(canvas.width / 85);
+        // Збільшуємо кількість рядів до 8 для щільності
+        for (let i = 0; i < (cols * 8); i++) {
             let rand = Math.random(), t = types[0];
             if (rand > 0.6) t = types[1]; if (rand > 0.85) t = types[2]; if (rand > 0.96) t = types[3];
             let dur = t.min + Math.random() * (t.max - t.min);
-            map.push({ x: (i % cols) * 90 + 15, y: Math.floor(i / cols) * 85 + 30, totalTime: dur, remaining: dur, reward: Math.floor(t.r * level), icon: t.icon, active: true });
+            let xPos = (i % cols) * 85 + 10;
+            let yPos = Math.floor(i / cols) * 80 + 20;
+            
+            // Не ставимо руду там, де зазвичай знаходиться кнопка
+            if (yPos < canvas.height - 100) {
+                map.push({ x: xPos, y: yPos, totalTime: dur, remaining: dur, reward: Math.floor(t.r * level), icon: t.icon, active: true });
+            }
         }
         document.getElementById('level-num').innerText = level;
+        save();
     }
 
     class Goblin {
@@ -227,13 +227,14 @@
                 this.target.remaining -= (dt / 1000) * power;
                 if (this.target.remaining <= 0) {
                     gold += this.target.reward; this.target.active = false; this.target = null;
-                    if (map.every(m => !m.active)) { level++; initLevel(); }
+                    if (map.filter(m => m.active).length === 0) { level++; initLevel(); }
                     updateStats(); save();
                 }
             }
         }
         draw() {
-            ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.fillText("🧌", this.x, this.y);
+            ctx.font = "40px Arial"; ctx.textAlign = "center";
+            ctx.fillText("🧌", this.x, this.y);
             if (this.target && this.target.active) {
                 let prg = 1 - (this.target.remaining / this.target.totalTime);
                 ctx.beginPath(); ctx.arc(this.x, this.y - 15, 25, 0, Math.PI * 2 * prg);
@@ -257,8 +258,8 @@
             let other = goblins.find(g => g !== draggedG && Math.hypot(g.x - draggedG.x, g.y - draggedG.y) < 40);
             if(other && other.lvl === draggedG.lvl) { other.lvl++; goblins = goblins.filter(g => g !== draggedG); }
             else { 
-                let b = map.find(m => m.active && Math.hypot(m.x+30-draggedG.x, m.y+30-draggedG.y) < 60);
-                if(b) { draggedG.target = b; draggedG.x = b.x + 30; draggedG.y = b.y + 40; }
+                let b = map.find(m => m.active && Math.hypot(m.x+35-draggedG.x, m.y+35-draggedG.y) < 60);
+                if(b) { draggedG.target = b; draggedG.x = b.x + 35; draggedG.y = b.y + 45; }
             }
             draggedG = null; save();
         }
@@ -278,7 +279,7 @@
         requestAnimationFrame(loop);
     }
 
-    load(); if(map.length === 0) initLevel(); loop();
+    resize(); load(); if(map.length === 0) initLevel(); loop();
 </script>
 </body>
 </html>
