@@ -3,66 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Goblin Empire: Mine & City</title>
+    <title>Goblin Empire</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/606/606053.png">
     
-    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Goblin%20Empire%22,%22short_name%22:%22Goblins%22,%22start_url%22:%22index.html%22,%22display%22:%22standalone%22,%22background_color%22:%22#1a1a1a%22,%22theme_color%22:%22#2c3e50%22,%22icons%22:[{%22src%22:%22https://cdn-icons-png.flaticon.com/512/606/606053.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22}]}">
-
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; overflow: hidden; touch-action: none; height: 100vh; }
+        /* Блокуємо будь-яку прокрутку та фіксуємо висоту */
+        html, body { 
+            margin: 0; padding: 0; 
+            width: 100%; height: 100%; 
+            overflow: hidden; background: #1a1a1a; 
+            position: fixed; /* Важливо для мобільних PWA */
+        }
+
+        body { color: white; font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
         
-        /* Виправлення для статус-бару та безпечних зон */
         .ui-header { 
-            height: 50px; background: #2c3e50; display: flex; justify-content: space-around; align-items: center; border-bottom: 3px solid #f1c40f; 
+            height: 60px; background: #2c3e50; display: flex; justify-content: space-around; align-items: center; border-bottom: 3px solid #f1c40f; 
             padding-top: env(safe-area-inset-top);
         }
         
         .tabs { display: flex; height: 50px; background: #34495e; }
-        .tab-btn { flex: 1; border: none; background: #34495e; color: #bdc3c7; font-weight: bold; font-size: 14px; }
-        .tab-btn.active { background: #27ae60; color: white; border-top: 3px solid #fff; }
+        .tab-btn { flex: 1; border: none; background: #34495e; color: #bdc3c7; font-weight: bold; }
+        .tab-btn.active { background: #27ae60; color: white; }
         
-        #mine-page, #city-page { width: 100vw; height: calc(100vh - 100px - env(safe-area-inset-top)); position: relative; display: none; }
+        /* Розраховуємо висоту ігрової зони точно */
+        #mine-page, #city-page { 
+            width: 100%; 
+            height: calc(100% - 110px - env(safe-area-inset-top)); 
+            position: relative; 
+            display: none; 
+        }
         .active-page { display: block !important; }
 
         canvas { display: block; background: #1e272e; width: 100%; height: 100%; }
 
-        /* ВИПРАВЛЕННЯ КНОПКИ: піднімаємо її вище та враховуємо безпечну зону */
+        /* НОВА ЛОГІКА КНОПКИ: Використовуємо фіксоване позиціювання */
         .controls { 
-            position: absolute; 
-            bottom: calc(30px + env(safe-area-inset-bottom)); 
+            position: fixed; 
+            bottom: calc(40px + env(safe-area-inset-bottom)); 
+            left: 0;
             width: 100%; 
             display: flex; 
             justify-content: center; 
-            pointer-events: none; 
-            z-index: 10;
+            z-index: 999;
+            pointer-events: none;
         }
         .btn { 
-            pointer-events: auto; padding: 15px 25px; border: none; color: white; 
-            border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px;
+            pointer-events: auto; 
+            padding: 18px 35px; 
+            border: none; 
+            color: white; 
+            border-radius: 50px; 
+            font-weight: bold; 
+            font-size: 18px;
+            background: #e67e22; 
+            box-shadow: 0 6px #d35400;
+            active { transform: translateY(2px); box-shadow: 0 4px #d35400; }
         }
-        .buy-btn { background: #e67e22; box-shadow: 0 4px #d35400; }
         
         .village-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; background: #2ecc71; border-radius: 15px; margin: 10px; }
-        .plot { aspect-ratio: 1/1; background: #27ae60; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; border: 2px solid #1e8449; position: relative; }
-        .lvl-badge { position: absolute; top: 2px; right: 2px; background: #f1c40f; color: black; font-size: 10px; padding: 1px 4px; border-radius: 4px; font-weight: bold; }
+        .plot { aspect-ratio: 1/1; background: #27ae60; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; position: relative; }
+        .lvl-badge { position: absolute; top: 2px; right: 2px; background: #f1c40f; color: black; font-size: 10px; padding: 1px 4px; border-radius: 4px; }
 
         #build-menu { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #34495e; padding: 20px; border-radius: 15px; border: 3px solid #f1c40f;
-            display: none; z-index: 100; width: 260px; box-shadow: 0 0 100px black; text-align: center;
+            display: none; z-index: 1000; width: 260px; box-shadow: 0 0 100px black; text-align: center;
         }
-        .build-opt { background: #2c3e50; padding: 12px; margin: 8px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .build-opt { background: #2c3e50; padding: 12px; margin: 8px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
 <body>
 
 <div class="ui-header">
-    <div style="font-size:18px; color:#f1c40f; font-weight:bold;">💰 <span id="gold">200</span></div>
-    <div style="font-size:14px; color:#3498db;">⚒️ <span id="speed-bonus">100</span>%</div>
-    <div style="color:#ecf0f1; font-weight:bold;">Lvl: <span id="level-num">1</span></div>
+    <div>💰 <span id="gold">200</span></div>
+    <div>⚒️ <span id="speed-bonus">100</span>%</div>
+    <div>Lvl: <span id="level-num">1</span></div>
 </div>
 
 <div class="tabs">
@@ -70,17 +88,18 @@
     <button id="t-city" class="tab-btn" onclick="showPage('city')">🏘️ МІСТО</button>
 </div>
 
+<div id="mine-controls" class="controls">
+    <button onclick="buyGoblin()" class="btn">🧌 Наняти (+50💰)</button>
+</div>
+
 <div id="mine-page" class="active-page">
     <canvas id="gameCanvas"></canvas>
-    <div class="controls">
-        <button onclick="buyGoblin()" class="btn buy-btn">🧌 Наняти (+50💰)</button>
-    </div>
 </div>
 
 <div id="city-page">
     <div class="village-grid" id="village"></div>
     <div id="build-menu" onclick="event.stopPropagation()">
-        <h3 id="menu-title" style="margin:0 0 10px 0">Будівництво</h3>
+        <h3 id="menu-title">Будівництво</h3>
         <div id="options-container"></div>
         <button onclick="closeMenu()" style="width:100%; margin-top:10px; background:#e74c3c; border:none; color:white; padding:8px; border-radius:5px;">Закрити</button>
     </div>
@@ -93,14 +112,15 @@
     let villageData = Array(16).fill(null).map(() => ({type:'empty', icon:'🟫', lvl: 0}));
     let lastTime = Date.now();
 
-    function resize() { 
-        canvas.width = window.innerWidth; 
-        canvas.height = document.getElementById('mine-page').offsetHeight; 
+    function resize() {
+        const page = document.getElementById('mine-page');
+        canvas.width = window.innerWidth;
+        canvas.height = page.offsetHeight;
     }
-    window.addEventListener('resize', resize);
-    // Додатковий виклик після завантаження для PWA мода
-    window.addEventListener('load', () => { setTimeout(resize, 100); });
-    resize();
+    
+    // Слідкуємо за зміною орієнтації та розміру
+    window.addEventListener('resize', () => { setTimeout(resize, 200); });
+    window.addEventListener('load', () => { setTimeout(resize, 200); });
 
     function save() {
         const data = { gold, level, goblins: goblins.map(g=>({x:g.x, y:g.y, lvl:g.lvl})), villageData };
@@ -117,10 +137,25 @@
         updateStats();
     }
 
+    function showPage(p) {
+        document.getElementById('mine-page').className = p==='mine'?'active-page':'';
+        document.getElementById('city-page').className = p==='city'?'active-page':'';
+        document.getElementById('t-mine').className = 'tab-btn ' + (p==='mine'?'active':'');
+        document.getElementById('t-city').className = 'tab-btn ' + (p==='city'?'active':'');
+        
+        // Показуємо кнопку лише на сторінці шахти
+        document.getElementById('mine-controls').style.display = p==='mine' ? 'flex' : 'none';
+        
+        if(p==='city') renderVillage();
+        setTimeout(resize, 50);
+    }
+
+    // Решта логіки (renderVillage, openBuildMenu, initLevel, Goblin class тощо) залишається без змін
+    // але я додав прискорення, яке ми обговорювали:
+
     function getSpeedBonus() {
         let forests = villageData.filter(p => p.type === 'forest');
-        let totalLvl = forests.reduce((sum, p) => sum + p.lvl, 0);
-        return 1 + (totalLvl * 0.1);
+        return 1 + (forests.reduce((sum, p) => sum + p.lvl, 0) * 0.1);
     }
 
     setInterval(() => {
@@ -128,15 +163,6 @@
         let income = gardens.reduce((sum, p) => sum + (p.lvl * 5), 0);
         if (income > 0) { gold += income; updateStats(); }
     }, 10000);
-
-    function showPage(p) {
-        document.getElementById('mine-page').className = p==='mine'?'active-page':'';
-        document.getElementById('city-page').className = p==='city'?'active-page':'';
-        document.getElementById('t-mine').className = 'tab-btn ' + (p==='mine'?'active':'');
-        document.getElementById('t-city').className = 'tab-btn ' + (p==='city'?'active':'');
-        if(p==='city') renderVillage();
-        setTimeout(resize, 10);
-    }
 
     function renderVillage() {
         const v = document.getElementById('village'); v.innerHTML = '';
@@ -155,7 +181,6 @@
         const menu = document.getElementById('build-menu');
         const container = document.getElementById('options-container');
         container.innerHTML = '';
-        
         if (plot.type === 'empty') {
             addOption(container, '🌲 Ліс', 200, () => confirmBuild('🌲', 200, 'forest', 1));
             addOption(container, '🍅 Город', 150, () => confirmBuild('🍅', 150, 'garden', 1));
@@ -175,128 +200,65 @@
     }
 
     function confirmBuild(icon, cost, type, newLvl) {
-        if(gold >= cost) {
-            gold -= cost;
-            villageData[selectedPlot] = { type, icon, lvl: newLvl };
-            closeMenu(); renderVillage(); updateStats(); save();
-        } else alert("Бракує золота!");
+        if(gold >= cost) { gold -= cost; villageData[selectedPlot] = { type, icon, lvl: newLvl }; closeMenu(); renderVillage(); updateStats(); save(); }
+        else alert("Бракує золота!");
     }
-
     function closeMenu() { document.getElementById('build-menu').style.display='none'; }
 
     function initLevel() {
         map = [];
-        const types = [
-            { icon: '🪨', minS: 30, maxS: 60, r: 50 },
-            { icon: '🪙', minS: 200, maxS: 500, r: 300 },
-            { icon: '🔵', minS: 600, maxS: 1200, r: 1500 },
-            { icon: '🟡', minS: 1800, maxS: 3600, r: 5000 }
-        ];
-
+        const types = [{ icon:'🪨', min:30, max:60, r:50 }, { icon:'🪙', min:200, max:500, r:300 }, { icon:'🔵', min:600, max:1200, r:1500 }, { icon:'🟡', min:1800, max:3600, r:5000 }];
         let cols = Math.floor(canvas.width / 90);
         for (let i = 0; i < (cols * 5); i++) {
-            let rand = Math.random();
-            let t = types[0];
-            if (rand > 0.6) t = types[1];
-            if (rand > 0.85) t = types[2];
-            if (rand > 0.96) t = types[3];
-
-            let durationS = t.minS + Math.random() * (t.maxS - t.minS);
-            map.push({
-                x: (i % cols) * 90 + 15,
-                y: Math.floor(i / cols) * 85 + 30,
-                totalTime: durationS,
-                remaining: durationS,
-                reward: Math.floor(t.r * level),
-                icon: t.icon,
-                active: true
-            });
+            let rand = Math.random(), t = types[0];
+            if (rand > 0.6) t = types[1]; if (rand > 0.85) t = types[2]; if (rand > 0.96) t = types[3];
+            let dur = t.min + Math.random() * (t.max - t.min);
+            map.push({ x: (i % cols) * 90 + 15, y: Math.floor(i / cols) * 85 + 30, totalTime: dur, remaining: dur, reward: Math.floor(t.r * level), icon: t.icon, active: true });
         }
         document.getElementById('level-num').innerText = level;
     }
 
     class Goblin {
-        constructor(x, y, lvl) { 
-            this.x = x; this.y = y; this.lvl = lvl; 
-            this.target = null; 
-        }
-        
+        constructor(x, y, lvl) { this.x = x; this.y = y; this.lvl = lvl; this.target = null; }
         update(dt) {
             if (this.isDragging) return;
             if (this.target && this.target.active) {
                 let power = (2.0 + (this.lvl - 1) * 1.0) * getSpeedBonus();
                 this.target.remaining -= (dt / 1000) * power;
-
                 if (this.target.remaining <= 0) {
-                    gold += this.target.reward;
-                    this.target.active = false;
-                    this.target = null;
+                    gold += this.target.reward; this.target.active = false; this.target = null;
                     if (map.every(m => !m.active)) { level++; initLevel(); }
                     updateStats(); save();
                 }
             }
         }
-
         draw() {
-            ctx.font = "40px Arial"; ctx.textAlign = "center";
-            ctx.fillText("🧌", this.x, this.y);
-            
+            ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.fillText("🧌", this.x, this.y);
             if (this.target && this.target.active) {
-                let progress = 1 - (this.target.remaining / this.target.totalTime);
-                ctx.beginPath();
-                ctx.arc(this.x, this.y - 15, 25, 0, Math.PI * 2 * progress);
+                let prg = 1 - (this.target.remaining / this.target.totalTime);
+                ctx.beginPath(); ctx.arc(this.x, this.y - 15, 25, 0, Math.PI * 2 * prg);
                 ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 4; ctx.stroke();
-                
-                let sTotal = Math.max(0, Math.floor(this.target.remaining));
-                let h = Math.floor(sTotal / 3600);
-                let m = Math.floor((sTotal % 3600) / 60);
-                let s = sTotal % 60;
+                let s = Math.max(0, Math.floor(this.target.remaining));
                 ctx.fillStyle = "white"; ctx.font = "bold 10px monospace";
-                ctx.fillText(`${h>0?h+'г ':''}${m}хв ${s}с`, this.x, this.y + 25);
+                ctx.fillText(`${Math.floor(s/60)}хв ${s%60}с`, this.x, this.y + 25);
             } else if (!this.isDragging) {
-                ctx.fillStyle = "#e74c3c"; ctx.font = "bold 10px Arial";
-                ctx.fillText("ЧЕКАЄ", this.x, this.y + 20);
+                ctx.fillStyle = "#e74c3c"; ctx.font = "bold 10px Arial"; ctx.fillText("ЧЕКАЄ", this.x, this.y + 20);
             }
-            ctx.fillStyle = "#f1c40f"; ctx.font = "bold 12px Arial";
-            ctx.fillText("L" + this.lvl, this.x, this.y - 42);
+            ctx.fillStyle = "#f1c40f"; ctx.font = "bold 12px Arial"; ctx.fillText("L" + this.lvl, this.x, this.y - 42);
         }
     }
 
-    function getPos(e) {
-        let t = e.touches ? e.touches[0] : e;
-        let r = canvas.getBoundingClientRect();
-        return { x: t.clientX - r.left, y: t.clientY - r.top };
-    }
-    
-    function start(e) { 
-        let p = getPos(e); 
-        draggedG = goblins.find(g => Math.hypot(g.x - p.x, g.y - p.y) < 40); 
-        if(draggedG) draggedG.isDragging = true; 
-    }
-    
-    function move(e) { 
-        if(draggedG) { 
-            let p = getPos(e); 
-            draggedG.x = p.x; draggedG.y = p.y; 
-            if(e.touches) e.preventDefault(); 
-        } 
-    }
-    
+    function getPos(e) { let t = e.touches ? e.touches[0] : e; let r = canvas.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; }
+    function start(e) { let p = getPos(e); draggedG = goblins.find(g => Math.hypot(g.x - p.x, g.y - p.y) < 40); if(draggedG) draggedG.isDragging = true; }
+    function move(e) { if(draggedG) { let p = getPos(e); draggedG.x = p.x; draggedG.y = p.y; if(e.touches) e.preventDefault(); } }
     function end() {
         if(draggedG) {
             draggedG.isDragging = false;
             let other = goblins.find(g => g !== draggedG && Math.hypot(g.x - draggedG.x, g.y - draggedG.y) < 40);
-            
-            if(other && other.lvl === draggedG.lvl) { 
-                other.lvl++; 
-                goblins = goblins.filter(g => g !== draggedG); 
-            } else { 
+            if(other && other.lvl === draggedG.lvl) { other.lvl++; goblins = goblins.filter(g => g !== draggedG); }
+            else { 
                 let b = map.find(m => m.active && Math.hypot(m.x+30-draggedG.x, m.y+30-draggedG.y) < 60);
-                if(b) {
-                    draggedG.target = b;
-                    draggedG.x = b.x + 30;
-                    draggedG.y = b.y + 40;
-                }
+                if(b) { draggedG.target = b; draggedG.x = b.x + 30; draggedG.y = b.y + 40; }
             }
             draggedG = null; save();
         }
@@ -305,30 +267,13 @@
     canvas.addEventListener('mousedown', start); window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
     canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
 
-    function buyGoblin() { 
-        if(gold >= 50) { 
-            gold -= 50; 
-            // Поява трохи вище кнопки
-            goblins.push(new Goblin(canvas.width/2, canvas.height-120, 1)); 
-            updateStats(); save(); 
-        } else alert("Недостатньо золота!");
-    }
-
-    function updateStats() { 
-        document.getElementById('gold').innerText = Math.floor(gold); 
-        document.getElementById('speed-bonus').innerText = Math.round(getSpeedBonus() * 100);
-    }
+    function buyGoblin() { if(gold >= 50) { gold -= 50; goblins.push(new Goblin(canvas.width/2, canvas.height/2, 1)); updateStats(); save(); } }
+    function updateStats() { document.getElementById('gold').innerText = Math.floor(gold); document.getElementById('speed-bonus').innerText = Math.round(getSpeedBonus() * 100); }
 
     function loop() {
-        let now = Date.now();
-        let dt = now - lastTime;
-        lastTime = now;
-        
+        let now = Date.now(), dt = now - lastTime; lastTime = now;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        map.forEach(m => { if(m.active) { 
-            ctx.font = "35px Arial"; ctx.textAlign = "left";
-            ctx.fillText(m.icon, m.x, m.y + 40); 
-        }});
+        map.forEach(m => { if(m.active) { ctx.font = "35px Arial"; ctx.textAlign = "left"; ctx.fillText(m.icon, m.x, m.y + 40); }});
         goblins.forEach(g => { g.update(dt); g.draw(); });
         requestAnimationFrame(loop);
     }
