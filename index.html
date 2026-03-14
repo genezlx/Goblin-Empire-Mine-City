@@ -66,12 +66,11 @@
 </div>
 
 <script>
-    // --- ТУТ УВЕСЬ ТВОЙ ПОПЕРЕДНІЙ JS КОД ---
-    // (Копіюю сюди логіку, яку ми написали раніше)
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     let gold = 200, level = 1, map = [], goblins = [], draggedG = null, selectedPlot = null;
     let villageData = Array(16).fill(null).map(() => ({type:'empty', icon:'🟫', lvl: 0}));
+    let lastTime = Date.now();
 
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight - 100; }
     window.addEventListener('resize', resize); resize();
@@ -158,45 +157,81 @@
     function closeMenu() { document.getElementById('build-menu').style.display='none'; }
 
     function initLevel() {
-        map = []; let hpMult = Math.pow(2, level - 1);
-        let cols = Math.floor(canvas.width / 85);
+        map = [];
+        const types = [
+            { icon: '🪨', minS: 30, maxS: 60, r: 50 },
+            { icon: '🪙', minS: 200, maxS: 500, r: 300 },
+            { icon: '🔵', minS: 600, maxS: 1200, r: 1500 },
+            { icon: '🟡', minS: 1800, maxS: 3600, r: 5000 }
+        ];
+
+        let cols = Math.floor(canvas.width / 90);
         for (let i = 0; i < (cols * 5); i++) {
-            if (Math.random() < 0.7) {
-                let type = Math.random() > 0.85 ? 'gold' : 'rock';
-                let res = type === 'gold' ? ['🟡', 400, '#f1c40f', 200] : ['🪨', 100, '#95a5a6', 40];
-                map.push({ x: (i%cols)*85+10, y: Math.floor(i/cols)*75+20, hp: res[1]*hpMult, maxHp: res[1]*hpMult, icon: res[0], color: res[2], reward: res[3], active: true });
-            }
+            let rand = Math.random();
+            let t = types[0];
+            if (rand > 0.6) t = types[1];
+            if (rand > 0.85) t = types[2];
+            if (rand > 0.96) t = types[3];
+
+            let durationS = t.minS + Math.random() * (t.maxS - t.minS);
+            map.push({
+                x: (i % cols) * 90 + 15,
+                y: Math.floor(i / cols) * 85 + 30,
+                totalTime: durationS,
+                remaining: durationS,
+                reward: Math.floor(t.r * level),
+                icon: t.icon,
+                active: true
+            });
         }
         document.getElementById('level-num').innerText = level;
     }
 
     class Goblin {
-        constructor(x, y, lvl) { this.x = x; this.y = y; this.lvl = lvl; this.target = null; this.lastHit = Date.now(); this.jump = 0; }
-        update() {
+        constructor(x, y, lvl) { 
+            this.x = x; this.y = y; this.lvl = lvl; 
+            this.target = null; 
+        }
+        
+        update(dt) {
             if (this.isDragging) return;
             if (this.target && this.target.active) {
-                let actualSpeed = 1000 / getSpeedBonus();
-                if (Date.now() - this.lastHit >= actualSpeed) {
-                    this.target.hp -= Math.pow(2, this.lvl-1);
-                    this.lastHit = Date.now(); this.jump = 10;
-                    if (this.target.hp <= 0) { 
-                        gold += this.target.reward * level;
-                        this.target.active = false; this.target = null;
-                        if(map.every(m=>!m.active)) { level++; initLevel(); }
-                        updateStats(); save();
-                    }
+                // ПРИСКОРЕННЯ ТУТ (база 2.0 + 1.0 за кожний додатковий рівень)
+                let power = (2.0 + (this.lvl - 1) * 1.0) * getSpeedBonus();
+                this.target.remaining -= (dt / 1000) * power;
+
+                if (this.target.remaining <= 0) {
+                    gold += this.target.reward;
+                    this.target.active = false;
+                    this.target = null;
+                    if (map.every(m => !m.active)) { level++; initLevel(); }
+                    updateStats(); save();
                 }
             }
-            if (this.jump > 0) this.jump *= 0.8;
         }
+
         draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y - this.jump);
             ctx.font = "40px Arial"; ctx.textAlign = "center";
-            ctx.fillText("🧌", 0, 0);
-            ctx.fillStyle = "white"; ctx.font = "bold 11px Arial";
-            ctx.fillText("L" + this.lvl, 0, -42);
-            ctx.restore();
+            ctx.fillText("🧌", this.x, this.y);
+            
+            if (this.target && this.target.active) {
+                let progress = 1 - (this.target.remaining / this.target.totalTime);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - 15, 25, 0, Math.PI * 2 * progress);
+                ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 4; ctx.stroke();
+                
+                let sTotal = Math.max(0, Math.floor(this.target.remaining));
+                let h = Math.floor(sTotal / 3600);
+                let m = Math.floor((sTotal % 3600) / 60);
+                let s = sTotal % 60;
+                ctx.fillStyle = "white"; ctx.font = "bold 10px monospace";
+                ctx.fillText(`${h>0?h+'г ':''}${m}хв ${s}с`, this.x, this.y + 25);
+            } else if (!this.isDragging) {
+                ctx.fillStyle = "#e74c3c"; ctx.font = "bold 10px Arial";
+                ctx.fillText("ЧЕКАЄ", this.x, this.y + 20);
+            }
+            ctx.fillStyle = "#f1c40f"; ctx.font = "bold 12px Arial";
+            ctx.fillText("L" + this.lvl, this.x, this.y - 42);
         }
     }
 
@@ -205,14 +240,37 @@
         let r = canvas.getBoundingClientRect();
         return { x: t.clientX - r.left, y: t.clientY - r.top };
     }
-    function start(e) { let p = getPos(e); draggedG = goblins.find(g => Math.hypot(g.x - p.x, g.y - p.y) < 40); if(draggedG) draggedG.isDragging = true; }
-    function move(e) { if(draggedG) { let p = getPos(e); draggedG.x = p.x; draggedG.y = p.y; if(e.touches) e.preventDefault(); } }
+    
+    function start(e) { 
+        let p = getPos(e); 
+        draggedG = goblins.find(g => Math.hypot(g.x - p.x, g.y - p.y) < 40); 
+        if(draggedG) draggedG.isDragging = true; 
+    }
+    
+    function move(e) { 
+        if(draggedG) { 
+            let p = getPos(e); 
+            draggedG.x = p.x; draggedG.y = p.y; 
+            if(e.touches) e.preventDefault(); 
+        } 
+    }
+    
     function end() {
         if(draggedG) {
             draggedG.isDragging = false;
             let other = goblins.find(g => g !== draggedG && Math.hypot(g.x - draggedG.x, g.y - draggedG.y) < 40);
-            if(other && other.lvl === draggedG.lvl) { other.lvl++; goblins = goblins.filter(g => g !== draggedG); }
-            else { let b = map.find(m => m.active && draggedG.x > m.x && draggedG.x < m.x + 85 && draggedG.y < m.y + 75); if(b) draggedG.target = b; }
+            
+            if(other && other.lvl === draggedG.lvl) { 
+                other.lvl++; 
+                goblins = goblins.filter(g => g !== draggedG); 
+            } else { 
+                let b = map.find(m => m.active && Math.hypot(m.x+30-draggedG.x, m.y+30-draggedG.y) < 60);
+                if(b) {
+                    draggedG.target = b;
+                    draggedG.x = b.x + 30;
+                    draggedG.y = b.y + 40;
+                }
+            }
             draggedG = null; save();
         }
     }
@@ -220,20 +278,30 @@
     canvas.addEventListener('mousedown', start); window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
     canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
 
-    function buyGoblin() { if(gold >= 50) { gold -= 50; goblins.push(new Goblin(canvas.width/2, canvas.height-50, 1)); updateStats(); save(); } }
+    function buyGoblin() { 
+        if(gold >= 50) { 
+            gold -= 50; 
+            goblins.push(new Goblin(canvas.width/2, canvas.height-80, 1)); 
+            updateStats(); save(); 
+        } else alert("Недостатньо золота!");
+    }
+
     function updateStats() { 
         document.getElementById('gold').innerText = Math.floor(gold); 
         document.getElementById('speed-bonus').innerText = Math.round(getSpeedBonus() * 100);
     }
 
     function loop() {
+        let now = Date.now();
+        let dt = now - lastTime;
+        lastTime = now;
+        
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         map.forEach(m => { if(m.active) { 
-            ctx.font = "30px Arial"; ctx.fillText(m.icon, m.x+40, m.y+45); 
-            ctx.fillStyle = "#333"; ctx.fillRect(m.x+10, m.y+5, 60, 4);
-            ctx.fillStyle = m.color; ctx.fillRect(m.x+10, m.y+5, (m.hp/m.maxHp)*60, 4); 
+            ctx.font = "35px Arial"; ctx.textAlign = "left";
+            ctx.fillText(m.icon, m.x, m.y + 40); 
         }});
-        goblins.forEach(g => { g.update(); g.draw(); });
+        goblins.forEach(g => { g.update(dt); g.draw(); });
         requestAnimationFrame(loop);
     }
 
