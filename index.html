@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Goblin Empire: Mine & City</title>
     
     <meta name="mobile-web-app-capable" content="yes">
@@ -12,18 +12,37 @@
     <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Goblin%20Empire%22,%22short_name%22:%22Goblins%22,%22start_url%22:%22index.html%22,%22display%22:%22standalone%22,%22background_color%22:%22#1a1a1a%22,%22theme_color%22:%22#2c3e50%22,%22icons%22:[{%22src%22:%22https://cdn-icons-png.flaticon.com/512/606/606053.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22}]}">
 
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; overflow: hidden; touch-action: none; }
-        .ui-header { height: 50px; background: #2c3e50; display: flex; justify-content: space-around; align-items: center; border-bottom: 3px solid #f1c40f; }
+        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; overflow: hidden; touch-action: none; height: 100vh; }
+        
+        /* Виправлення для статус-бару та безпечних зон */
+        .ui-header { 
+            height: 50px; background: #2c3e50; display: flex; justify-content: space-around; align-items: center; border-bottom: 3px solid #f1c40f; 
+            padding-top: env(safe-area-inset-top);
+        }
+        
         .tabs { display: flex; height: 50px; background: #34495e; }
         .tab-btn { flex: 1; border: none; background: #34495e; color: #bdc3c7; font-weight: bold; font-size: 14px; }
         .tab-btn.active { background: #27ae60; color: white; border-top: 3px solid #fff; }
         
-        #mine-page, #city-page { width: 100vw; height: calc(100vh - 100px); position: relative; display: none; }
+        #mine-page, #city-page { width: 100vw; height: calc(100vh - 100px - env(safe-area-inset-top)); position: relative; display: none; }
         .active-page { display: block !important; }
 
         canvas { display: block; background: #1e272e; width: 100%; height: 100%; }
-        .controls { position: absolute; bottom: 15px; width: 100%; display: flex; justify-content: center; gap: 10px; pointer-events: none; }
-        .btn { pointer-events: auto; padding: 12px 18px; border: none; color: white; border-radius: 12px; font-weight: bold; cursor: pointer; }
+
+        /* ВИПРАВЛЕННЯ КНОПКИ: піднімаємо її вище та враховуємо безпечну зону */
+        .controls { 
+            position: absolute; 
+            bottom: calc(30px + env(safe-area-inset-bottom)); 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            pointer-events: none; 
+            z-index: 10;
+        }
+        .btn { 
+            pointer-events: auto; padding: 15px 25px; border: none; color: white; 
+            border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px;
+        }
         .buy-btn { background: #e67e22; box-shadow: 0 4px #d35400; }
         
         .village-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; background: #2ecc71; border-radius: 15px; margin: 10px; }
@@ -53,7 +72,9 @@
 
 <div id="mine-page" class="active-page">
     <canvas id="gameCanvas"></canvas>
-    <div class="controls"><button onclick="buyGoblin()" class="btn buy-btn">🧌 Наняти (+50💰)</button></div>
+    <div class="controls">
+        <button onclick="buyGoblin()" class="btn buy-btn">🧌 Наняти (+50💰)</button>
+    </div>
 </div>
 
 <div id="city-page">
@@ -72,8 +93,14 @@
     let villageData = Array(16).fill(null).map(() => ({type:'empty', icon:'🟫', lvl: 0}));
     let lastTime = Date.now();
 
-    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight - 100; }
-    window.addEventListener('resize', resize); resize();
+    function resize() { 
+        canvas.width = window.innerWidth; 
+        canvas.height = document.getElementById('mine-page').offsetHeight; 
+    }
+    window.addEventListener('resize', resize);
+    // Додатковий виклик після завантаження для PWA мода
+    window.addEventListener('load', () => { setTimeout(resize, 100); });
+    resize();
 
     function save() {
         const data = { gold, level, goblins: goblins.map(g=>({x:g.x, y:g.y, lvl:g.lvl})), villageData };
@@ -108,6 +135,7 @@
         document.getElementById('t-mine').className = 'tab-btn ' + (p==='mine'?'active':'');
         document.getElementById('t-city').className = 'tab-btn ' + (p==='city'?'active':'');
         if(p==='city') renderVillage();
+        setTimeout(resize, 10);
     }
 
     function renderVillage() {
@@ -196,7 +224,6 @@
         update(dt) {
             if (this.isDragging) return;
             if (this.target && this.target.active) {
-                // ПРИСКОРЕННЯ ТУТ (база 2.0 + 1.0 за кожний додатковий рівень)
                 let power = (2.0 + (this.lvl - 1) * 1.0) * getSpeedBonus();
                 this.target.remaining -= (dt / 1000) * power;
 
@@ -281,7 +308,8 @@
     function buyGoblin() { 
         if(gold >= 50) { 
             gold -= 50; 
-            goblins.push(new Goblin(canvas.width/2, canvas.height-80, 1)); 
+            // Поява трохи вище кнопки
+            goblins.push(new Goblin(canvas.width/2, canvas.height-120, 1)); 
             updateStats(); save(); 
         } else alert("Недостатньо золота!");
     }
